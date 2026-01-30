@@ -9,13 +9,13 @@ const { startAutoSync } = require('./services/newsService');
 
 // CORS config for production
 const corsOptions = {
-    origin: process.env.NODE_ENV === 'production'
-        ? [
-            'https://layoff-tracker.vercel.app',
-            /\.vercel\.app$/,
-            /localhost:\d+$/
-        ]
-        : '*',
+    origin: [
+        'https://layoff-tracker.vercel.app',
+        'https://layoff-tracker-india.vercel.app',
+        /\.vercel\.app$/,
+        /localhost:\d+$/,
+        'http://localhost:5173'
+    ],
     methods: ['GET', 'POST', 'OPTIONS'],
     credentials: true
 };
