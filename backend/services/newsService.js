@@ -229,7 +229,7 @@ const fetchFromNewsAPI = async () => {
 const fetchFromLayoffsFyi = async () => {
     try {
         console.log('[Layoffs.fyi] Fetching data from GitHub...');
-        
+
         // Try multiple possible GitHub URLs
         const urls = [
             'https://raw.githubusercontent.com/MohammedTaherMcMoran/Layoffs.fyi-Dataset/main/layoff_data.csv',
@@ -237,7 +237,7 @@ const fetchFromLayoffsFyi = async () => {
         ];
 
         let data = null;
-        
+
         for (const url of urls) {
             try {
                 console.log(`[Layoffs.fyi] Trying URL: ${url}`);
