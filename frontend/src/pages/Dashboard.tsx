@@ -212,8 +212,8 @@ export const Dashboard = () => {
                     </motion.div>
                 </div>
 
-                {/* Filters */}
-                <div className="mb-6">
+                {/* Filters + peer note */}
+                <div className="mb-6 grid gap-4 xl:grid-cols-[1fr_300px] items-start">
                     <Filters
                         searchQuery={searchQuery}
                         onSearchChange={setSearchQuery}
@@ -227,6 +227,21 @@ export const Dashboard = () => {
                         industries={industries}
                         sources={sources}
                     />
+
+                    <aside className="rounded-2xl border border-red-600/20 bg-gradient-to-br from-red-600/10 to-[#141414] p-4 shadow-lg shadow-red-600/10 xl:sticky xl:top-24">
+                        <div className="flex items-start gap-3">
+                            <div className="mt-1 w-10 h-10 rounded-xl bg-red-600/15 border border-red-600/20 flex items-center justify-center shrink-0">
+                                <Users className="w-5 h-5 text-red-400" />
+                            </div>
+                            <div>
+                                <p className="text-xs uppercase tracking-[0.2em] text-red-300 font-semibold mb-2">Peer notes</p>
+                                <h3 className="text-sm font-semibold text-white mb-2">Add context for everyone</h3>
+                                <p className="text-sm leading-6 text-neutral-300">
+                                    Open any layoff, post a public note, ask a question, or mark a report as a false flag so other readers can react quickly.
+                                </p>
+                            </div>
+                        </div>
+                    </aside>
                 </div>
 
                 {/* Content */}

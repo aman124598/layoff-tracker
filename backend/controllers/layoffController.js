@@ -1,6 +1,8 @@
 const { supabase } = require('../db');
 const newsService = require('../services/newsService');
 
+const VALID_COMMENT_KINDS = new Set(['general', 'helpful', 'question', 'correction', 'false_flag']);
+
 const getLayoffs = async (req, res) => {
     try {
         const { data, error } = await supabase
@@ -255,4 +257,94 @@ const getSourceStats = async (req, res) => {
     }
 };
 
-module.exports = { getLayoffs, syncLayoffs, cleanupDuplicates, cleanupLargeEntries, getSources, getLayoffsBySource, getSourceStats };
+const getLayoffComments = async (req, res) => {
+    try {
+        const layoffId = Number(req.params.layoffId);
+
+        if (!Number.isInteger(layoffId) || layoffId <= 0) {
+            return res.status(400).json({ error: 'Invalid layoff id' });
+        }
+
+        const { data, error } = await supabase
+            .from('layoff_comments')
+            .select('*')
+            .eq('layoff_id', layoffId)
+            .order('created_at', { ascending: true });
+
+        if (error) {
+            return res.status(500).json({ error: error.message });
+        }
+
+        res.json(data || []);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+const addLayoffComment = async (req, res) => {
+    try {
+        const layoffId = Number(req.params.layoffId);
+        const { display_name, comment_text, comment_kind } = req.body || {};
+
+        if (!Number.isInteger(layoffId) || layoffId <= 0) {
+            return res.status(400).json({ error: 'Invalid layoff id' });
+        }
+
+        const trimmedText = String(comment_text || '').trim();
+        if (!trimmedText) {
+            return res.status(400).json({ error: 'Comment text is required' });
+        }
+
+        if (trimmedText.length > 1000) {
+            return res.status(400).json({ error: 'Comment text must be 1000 characters or less' });
+        }
+
+        const safeKind = VALID_COMMENT_KINDS.has(comment_kind) ? comment_kind : 'general';
+        const safeName = String(display_name || '').trim().slice(0, 80) || 'Anonymous peer';
+
+        const { data: layoff, error: layoffError } = await supabase
+            .from('layoffs')
+            .select('id')
+            .eq('id', layoffId)
+            .maybeSingle();
+
+        if (layoffError) {
+            return res.status(500).json({ error: layoffError.message });
+        }
+
+        if (!layoff) {
+            return res.status(404).json({ error: 'Layoff record not found' });
+        }
+
+        const { data, error } = await supabase
+            .from('layoff_comments')
+            .insert({
+                layoff_id: layoffId,
+                display_name: safeName,
+                comment_text: trimmedText,
+                comment_kind: safeKind,
+            })
+            .select('*')
+            .single();
+
+        if (error) {
+            return res.status(500).json({ error: error.message });
+        }
+
+        res.status(201).json(data);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+module.exports = {
+    getLayoffs,
+    syncLayoffs,
+    cleanupDuplicates,
+    cleanupLargeEntries,
+    getSources,
+    getLayoffsBySource,
+    getSourceStats,
+    getLayoffComments,
+    addLayoffComment,
+};
