@@ -7,7 +7,9 @@ CREATE TABLE IF NOT EXISTS layoffs (
     country TEXT NOT NULL,
     industry TEXT NOT NULL,
     source_url TEXT NOT NULL UNIQUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+    source_name TEXT DEFAULT 'Unknown' NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
 -- Create index for faster querying
@@ -15,3 +17,4 @@ CREATE INDEX IF NOT EXISTS idx_layoffs_company_name ON layoffs(company_name);
 CREATE INDEX IF NOT EXISTS idx_layoffs_date ON layoffs(layoff_date);
 CREATE INDEX IF NOT EXISTS idx_layoffs_country ON layoffs(country);
 CREATE INDEX IF NOT EXISTS idx_layoffs_industry ON layoffs(industry);
+CREATE INDEX IF NOT EXISTS idx_layoffs_source ON layoffs(source_name);

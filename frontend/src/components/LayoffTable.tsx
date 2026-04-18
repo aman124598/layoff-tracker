@@ -36,6 +36,7 @@ export const LayoffTable = ({ layoffs }: LayoffTableProps) => {
                             <th className="text-left py-4 px-6 text-xs font-semibold text-neutral-500 uppercase tracking-wider">Country</th>
                             <th className="text-left py-4 px-6 text-xs font-semibold text-neutral-500 uppercase tracking-wider">Industry</th>
                             <th className="text-left py-4 px-6 text-xs font-semibold text-neutral-500 uppercase tracking-wider">Source</th>
+                            <th className="text-left py-4 px-6 text-xs font-semibold text-neutral-500 uppercase tracking-wider">Link</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-[#2a2a2a]">
@@ -74,6 +75,11 @@ export const LayoffTable = ({ layoffs }: LayoffTableProps) => {
                                     <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1a1a1a] border border-[#2a2a2a] text-neutral-300 rounded-lg text-sm">
                                         <Briefcase className="w-4 h-4 text-neutral-500" />
                                         {layoff.industry}
+                                    </span>
+                                </td>
+                                <td className="py-4 px-6">
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/10 border border-blue-600/20 text-blue-400 rounded-lg text-xs font-medium">
+                                        {layoff.source_name || 'Unknown'}
                                     </span>
                                 </td>
                                 <td className="py-4 px-6">
@@ -134,6 +140,9 @@ export const LayoffTable = ({ layoffs }: LayoffTableProps) => {
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg text-xs text-neutral-400">
                                 <MapPin className="w-3 h-3" />
                                 {layoff.country}
+                            </span>
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-600/10 border border-blue-600/20 rounded-lg text-xs text-blue-400 font-medium">
+                                {layoff.source_name || 'Unknown'}
                             </span>
                         </div>
                     </motion.div>

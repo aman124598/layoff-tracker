@@ -7,8 +7,11 @@ interface FiltersProps {
     onCountryChange: (value: string) => void;
     selectedIndustry: string;
     onIndustryChange: (value: string) => void;
+    selectedSource: string;
+    onSourceChange: (value: string) => void;
     countries: string[];
     industries: string[];
+    sources: Array<{ name: string; count: number }>;
 }
 
 export const Filters = ({
@@ -16,13 +19,17 @@ export const Filters = ({
     onSearchChange,
     selectedIndustry,
     onIndustryChange,
+    selectedSource,
+    onSourceChange,
     industries,
+    sources,
 }: FiltersProps) => {
-    const hasFilters = searchQuery || selectedIndustry;
+    const hasFilters = searchQuery || selectedIndustry || selectedSource;
 
     const clearFilters = () => {
         onSearchChange('');
         onIndustryChange('');
+        onSourceChange('');
     };
 
     return (
@@ -50,6 +57,23 @@ export const Filters = ({
                         <option value="">All Industries</option>
                         {industries.map((industry) => (
                             <option key={industry} value={industry}>{industry}</option>
+                        ))}
+                    </select>
+                </div>
+
+                {/* Source Filter */}
+                <div className="relative">
+                    <select
+                        value={selectedSource}
+                        onChange={(e) => onSourceChange(e.target.value)}
+                        className="w-full lg:w-56 px-4 py-3 bg-[#0a0a0a] border border-[#2a2a2a] rounded-xl text-white text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-red-600/50 focus:border-red-600 transition-all cursor-pointer"
+                        title="Filter by data source"
+                    >
+                        <option value="">All Sources</option>
+                        {sources.map((source) => (
+                            <option key={source.name} value={source.name}>
+                                {source.name} ({source.count})
+                            </option>
                         ))}
                     </select>
                 </div>

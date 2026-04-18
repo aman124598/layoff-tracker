@@ -124,4 +124,135 @@ const cleanupLargeEntries = async (req, res) => {
     }
 };
 
-module.exports = { getLayoffs, syncLayoffs, cleanupDuplicates, cleanupLargeEntries };
+// Get all available sources and their statistics
+const getSources = async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('layoffs')
+            .select('source_name, id')
+            .order('source_name', { ascending: true });
+
+        if (error) {
+            console.error('Database error:', error);
+            return res.status(500).json({ error: error.message });
+        }
+
+        // Count by source
+        const sourceStats = {};
+        for (const item of (data || [])) {
+            const source = item.source_name || 'Unknown';
+            sourceStats[source] = (sourceStats[source] || 0) + 1;
+        }
+
+        // Convert to array and sort by count
+        const sources = Object.entries(sourceStats)
+            .map(([name, count]) => ({ name, count }))
+            .sort((a, b) => b.count - a.count);
+
+        res.json({ sources, total: data?.length || 0 });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Database error' });
+    }
+};
+
+// Get layoffs filtered by source
+const getLayoffsBySource = async (req, res) => {
+    try {
+        const { source } = req.query;
+
+        if (!source) {
+            return res.status(400).json({ error: 'Source parameter is required' });
+        }
+
+        const { data, error } = await supabase
+            .from('layoffs')
+            .select('*')
+            .eq('source_name', source)
+            .order('layoff_date', { ascending: false });
+
+        if (error) {
+            console.error('Database error:', error);
+            return res.status(500).json({ error: error.message });
+        }
+
+        // Deduplicate
+        const seen = new Map();
+        const uniqueData = [];
+
+        for (const layoff of (data || [])) {
+            const date = new Date(layoff.layoff_date);
+            const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
+            const key = `${layoff.company_name}-${layoff.employees_laid_off}-${monthKey}`;
+
+            if (!seen.has(key)) {
+                seen.set(key, true);
+                uniqueData.push(layoff);
+            }
+        }
+
+        res.json(uniqueData);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Database error' });
+    }
+};
+
+// Get statistics about data sources
+const getSourceStats = async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('layoffs')
+            .select('source_name, company_name, employees_laid_off, country, created_at');
+
+        if (error) {
+            console.error('Database error:', error);
+            return res.status(500).json({ error: error.message });
+        }
+
+        const stats = {
+            total_records: data?.length || 0,
+            sources: {},
+            by_country: {},
+            last_updated: null
+        };
+
+        // Get newest record date
+        if (data && data.length > 0) {
+            const dates = data.map(d => new Date(d.created_at)).sort((a, b) => b - a);
+            stats.last_updated = dates[0];
+        }
+
+        // Aggregate by source
+        for (const item of (data || [])) {
+            const source = item.source_name || 'Unknown';
+            if (!stats.sources[source]) {
+                stats.sources[source] = {
+                    count: 0,
+                    employees_total: 0,
+                    first_seen: null,
+                    last_seen: null
+                };
+            }
+            stats.sources[source].count++;
+            stats.sources[source].employees_total += item.employees_laid_off || 0;
+
+            const created = new Date(item.created_at);
+            if (!stats.sources[source].first_seen) {
+                stats.sources[source].first_seen = created;
+            }
+            stats.sources[source].last_seen = created;
+
+            // Count by country
+            const country = item.country || 'Unknown';
+            stats.by_country[country] = (stats.by_country[country] || 0) + 1;
+        }
+
+        res.json(stats);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Database error' });
+    }
+};
+
+module.exports = { getLayoffs, syncLayoffs, cleanupDuplicates, cleanupLargeEntries, getSources, getLayoffsBySource, getSourceStats };

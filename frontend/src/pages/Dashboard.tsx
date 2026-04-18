@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TrendingDown, Users, Building2, Globe, IndianRupee, RefreshCw, Loader2 } from 'lucide-react';
 import { Header } from '../components/Header';
@@ -7,7 +7,7 @@ import { LayoffTable } from '../components/LayoffTable';
 import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
 import { useLayoffs } from '../hooks/useLayoffs';
-import { syncLayoffs } from '../api';
+import { syncLayoffs, fetchSources } from '../api';
 
 type Tab = 'india' | 'worldwide';
 
@@ -16,7 +16,22 @@ export const Dashboard = () => {
     const [activeTab, setActiveTab] = useState<Tab>('india');
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedIndustry, setSelectedIndustry] = useState('');
+    const [selectedSource, setSelectedSource] = useState('');
+    const [sources, setSources] = useState<Array<{ name: string; count: number }>>([]);
     const [syncing, setSyncing] = useState(false);
+
+    // Fetch sources on mount
+    useEffect(() => {
+        const loadSources = async () => {
+            try {
+                const sourcesData = await fetchSources();
+                setSources(sourcesData.sources || []);
+            } catch (err) {
+                console.error('Failed to fetch sources:', err);
+            }
+        };
+        loadSources();
+    }, []);
 
     // Only keep layoffs with actual employee counts
     const validLayoffs = useMemo(() => {
@@ -44,9 +59,10 @@ export const Dashboard = () => {
         return currentLayoffs.filter((layoff) => {
             const matchesSearch = layoff.company_name.toLowerCase().includes(searchQuery.toLowerCase());
             const matchesIndustry = !selectedIndustry || layoff.industry === selectedIndustry;
-            return matchesSearch && matchesIndustry;
+            const matchesSource = !selectedSource || layoff.source_name === selectedSource;
+            return matchesSearch && matchesIndustry && matchesSource;
         });
-    }, [currentLayoffs, searchQuery, selectedIndustry]);
+    }, [currentLayoffs, searchQuery, selectedIndustry, selectedSource]);
 
     // Calculate stats
     const stats = useMemo(() => {
@@ -61,11 +77,21 @@ export const Dashboard = () => {
         try {
             await syncLayoffs();
             refetch();
+            // Refresh sources after sync
+            const sourcesData = await fetchSources();
+            setSources(sourcesData.sources || []);
         } catch (err) {
             console.error('Sync failed:', err);
         } finally {
             setSyncing(false);
         }
+    };
+
+    const handleTabChange = (tab: Tab) => {
+        setActiveTab(tab);
+        setSelectedIndustry('');
+        setSearchQuery('');
+        setSelectedSource('');
     };
 
     return (
@@ -77,7 +103,7 @@ export const Dashboard = () => {
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
                     <div className="flex bg-[#141414] rounded-2xl border border-[#2a2a2a] p-1.5">
                         <button
-                            onClick={() => { setActiveTab('india'); setSelectedIndustry(''); setSearchQuery(''); }}
+                            onClick={() => handleTabChange('india')}
                             className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all ${activeTab === 'india'
                                     ? 'bg-gradient-to-r from-orange-600 to-red-600 text-white shadow-lg shadow-red-600/30'
                                     : 'text-neutral-400 hover:text-white hover:bg-[#1a1a1a]'
@@ -91,7 +117,7 @@ export const Dashboard = () => {
                             </span>
                         </button>
                         <button
-                            onClick={() => { setActiveTab('worldwide'); setSelectedIndustry(''); setSearchQuery(''); }}
+                            onClick={() => handleTabChange('worldwide')}
                             className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all ${activeTab === 'worldwide'
                                     ? 'bg-gradient-to-r from-red-600 to-red-700 text-white shadow-lg shadow-red-600/30'
                                     : 'text-neutral-400 hover:text-white hover:bg-[#1a1a1a]'
@@ -195,8 +221,11 @@ export const Dashboard = () => {
                         onCountryChange={() => { }}
                         selectedIndustry={selectedIndustry}
                         onIndustryChange={setSelectedIndustry}
+                        selectedSource={selectedSource}
+                        onSourceChange={setSelectedSource}
                         countries={[]}
                         industries={industries}
+                        sources={sources}
                     />
                 </div>
 

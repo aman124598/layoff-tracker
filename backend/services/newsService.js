@@ -169,17 +169,22 @@ const getIndustry = (companyName) => {
     return 'Technology';
 };
 
-const fetchAndStoreLayoffs = async () => {
+// Fetch from NewsAPI
+const fetchFromNewsAPI = async () => {
     if (!process.env.NEWS_API_KEY) {
-        throw new Error("NEWS_API_KEY is missing");
+        console.warn("NEWS_API_KEY is missing");
+        return [];
     }
 
     try {
-        // More targeted search queries
+        // Multiple targeted search queries for comprehensive coverage
         const searches = [
             '"layoffs" AND ("employees" OR "workers") AND (Google OR Meta OR Microsoft OR Amazon OR Tesla)',
             '"laid off" AND (Flipkart OR Swiggy OR Zomato OR Paytm OR BYJU OR Ola OR India)',
             '"job cuts" AND (Intel OR Salesforce OR Netflix OR Spotify OR IBM OR Cisco)',
+            '"layoffs" AND (Apple OR Oracle OR Netflix OR IBM)',
+            '"workforce reduction" OR "job elimination"',
+            '"mass layoff" OR "mass firing"',
         ];
 
         let allArticles = [];
@@ -195,13 +200,13 @@ const fetchAndStoreLayoffs = async () => {
                         pageSize: 50
                     }
                 });
-                allArticles = [...allArticles, ...response.data.articles];
+                allArticles = [...allArticles, ...(response.data.articles || [])];
             } catch (err) {
-                console.error(`Query failed`, err.message);
+                console.error(`[NewsAPI] Query failed: ${query}`, err.message);
             }
         }
 
-        // Dedupe
+        // Dedupe by URL
         const seen = new Set();
         allArticles = allArticles.filter(article => {
             if (seen.has(article.url)) return false;
@@ -209,7 +214,148 @@ const fetchAndStoreLayoffs = async () => {
             return true;
         });
 
-        console.log(`[SYNC] Fetched ${allArticles.length} unique articles.`);
+        console.log(`[NewsAPI] Fetched ${allArticles.length} unique articles`);
+        return allArticles;
+
+    } catch (error) {
+        console.error("[NewsAPI] Error:", error.message);
+        return [];
+    }
+};
+
+// Fetch from Layoffs.fyi GitHub data
+const fetchFromLayoffsFyi = async () => {
+    try {
+        console.log('[Layoffs.fyi] Fetching data...');
+        const response = await axios.get('https://raw.githubusercontent.com/MohammedTaherMcMoran/Layoffs.fyi-Dataset/main/layoff_data.csv');
+        
+        if (!response.data) {
+            console.log('[Layoffs.fyi] No data received');
+            return [];
+        }
+
+        // Parse CSV data
+        const lines = response.data.split('\n').slice(1); // Skip header
+        const articles = [];
+
+        for (const line of lines) {
+            if (!line.trim()) continue;
+
+            // Parse CSV line (handle quoted fields)
+            const parts = [];
+            let current = '';
+            let inQuotes = false;
+
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                if (char === '"') {
+                    inQuotes = !inQuotes;
+                } else if (char === ',' && !inQuotes) {
+                    parts.push(current.trim());
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            parts.push(current.trim());
+
+            if (parts.length >= 5) {
+                const company = parts[0]?.replace(/"/g, '').trim();
+                const dateStr = parts[1]?.replace(/"/g, '').trim();
+                const employees = parseInt(parts[2]?.replace(/"/g, '').trim() || 0);
+                const industry = parts[3]?.replace(/"/g, '').trim();
+                const country = parts[4]?.replace(/"/g, '').trim();
+
+                if (company && dateStr && employees > 0) {
+                    articles.push({
+                        title: `${company} lays off ${employees} employees`,
+                        description: `Industry: ${industry || 'Unknown'}. Country: ${country || 'Unknown'}`,
+                        url: `https://layoffs.fyi?company=${encodeURIComponent(company)}`,
+                        publishedAt: dateStr,
+                        source: { name: 'Layoffs.fyi' },
+                        custom_company: company,
+                        custom_country: country,
+                        custom_industry: industry,
+                        custom_employees: employees,
+                        from_layoffsfyi: true
+                    });
+                }
+            }
+        }
+
+        console.log(`[Layoffs.fyi] Fetched ${articles.length} records`);
+        return articles;
+
+    } catch (error) {
+        console.error('[Layoffs.fyi] Error:', error.message);
+        return [];
+    }
+};
+
+// Fetch from additional sources using news APIs
+const fetchFromAlternativeSources = async () => {
+    try {
+        console.log('[Alternative Sources] Fetching data...');
+        let articles = [];
+
+        // Try to fetch from market data/financial news sources
+        try {
+            // Generic layoff news from NewsAPI with financial focus
+            const response = await axios.get('https://newsapi.org/v2/everything', {
+                params: {
+                    apiKey: process.env.NEWS_API_KEY,
+                    q: 'layoff OR "job cuts" OR "workforce reduction" OR retrenchment',
+                    sortBy: 'publishedAt',
+                    language: 'en',
+                    pageSize: 100,
+                    sources: 'bloomberg,cnbc,reuters,financial-times,business-insider,techcrunch'
+                }
+            });
+            articles = [...articles, ...(response.data.articles || [])];
+        } catch (err) {
+            console.log('[Alternative Sources] Financial news fetch failed:', err.message);
+        }
+
+        // Dedupe
+        const seen = new Set();
+        articles = articles.filter(article => {
+            if (seen.has(article.url)) return false;
+            seen.add(article.url);
+            return true;
+        });
+
+        console.log(`[Alternative Sources] Fetched ${articles.length} articles`);
+        return articles;
+
+    } catch (error) {
+        console.error('[Alternative Sources] Error:', error.message);
+        return [];
+    }
+};
+
+const fetchAndStoreLayoffs = async () => {
+    try {
+        console.log('[SYNC] Starting multi-source sync...');
+        
+        // Fetch from all sources in parallel
+        const [newsAPIArticles, layoffsFyiArticles, alternativeArticles] = await Promise.all([
+            fetchFromNewsAPI(),
+            fetchFromLayoffsFyi(),
+            fetchFromAlternativeSources()
+        ]);
+
+        // Combine all sources
+        let allArticles = [...newsAPIArticles, ...layoffsFyiArticles, ...alternativeArticles];
+
+        // Dedupe by URL
+        const seen = new Set();
+        allArticles = allArticles.filter(article => {
+            if (seen.has(article.url)) return false;
+            seen.add(article.url);
+            return true;
+        });
+
+        console.log(`[SYNC] Total unique articles from all sources: ${allArticles.length}`);
 
         let savedCount = 0;
         let skippedCount = 0;
@@ -219,32 +365,44 @@ const fetchAndStoreLayoffs = async () => {
             const description = article.description || '';
             const sourceUrl = article.url;
             const publishedAt = article.publishedAt;
+            const sourceName = article.source?.name || 'Unknown';
 
-            // VALIDATION 1: Title must mention a known company
-            const companyName = extractAndValidateCompany(title);
-            if (!companyName) {
-                skippedCount++;
-                continue;
+            // For Layoffs.fyi data, use pre-extracted fields
+            let companyName, employeesLaidOff, isIndia, country, industry;
+
+            if (article.from_layoffsfyi) {
+                companyName = article.custom_company;
+                employeesLaidOff = article.custom_employees;
+                country = article.custom_country || 'Unknown';
+                industry = article.custom_industry || 'Technology';
+                isIndia = country === 'India';
+            } else {
+                // VALIDATION 1: Title must mention a known company
+                companyName = extractAndValidateCompany(title);
+                if (!companyName) {
+                    skippedCount++;
+                    continue;
+                }
+
+                // VALIDATION 2: Must be CONFIRMED layoff (not at-risk/planned)
+                if (!isConfirmedLayoff(title)) {
+                    skippedCount++;
+                    continue;
+                }
+
+                // VALIDATION 3: Must have employee count
+                employeesLaidOff = extractEmployeeCount(title, description);
+                if (!employeesLaidOff) {
+                    skippedCount++;
+                    continue;
+                }
+
+                isIndia = isIndiaRelated(title, description);
+                country = isIndia ? 'India' : 'USA';
+                industry = getIndustry(companyName);
             }
 
-            // VALIDATION 2: Must be CONFIRMED layoff (not at-risk/planned)
-            if (!isConfirmedLayoff(title)) {
-                skippedCount++;
-                continue;
-            }
-
-            // VALIDATION 3: Must have employee count
-            const employeesLaidOff = extractEmployeeCount(title, description);
-            if (!employeesLaidOff) {
-                skippedCount++;
-                continue;
-            }
-
-            const isIndia = isIndiaRelated(title, description);
-            const country = isIndia ? 'India' : 'USA';
-            const industry = getIndustry(companyName);
-
-            // Check duplicates - by URL
+            // Check duplicates - by URL first
             const { data: existingByUrl } = await supabase
                 .from('layoffs')
                 .select('id')
@@ -274,22 +432,33 @@ const fetchAndStoreLayoffs = async () => {
                     employees_laid_off: employeesLaidOff,
                     country: country,
                     industry: industry,
-                    source_url: sourceUrl
+                    source_url: sourceUrl,
+                    source_name: sourceName
                 });
 
             if (error) {
                 console.error("Insert error:", error.message);
             } else {
-                console.log(`✓ ${companyName} | ${employeesLaidOff} | ${country} | ${industry}`);
+                console.log(`✓ [${sourceName}] ${companyName} | ${employeesLaidOff} | ${country} | ${industry}`);
                 savedCount++;
             }
         }
 
         console.log(`[SYNC] Done: ${savedCount} saved, ${skippedCount} skipped`);
-        return { message: "Sync complete", saved: savedCount, skipped: skippedCount, total_fetched: allArticles.length };
+        return { 
+            message: "Sync complete", 
+            saved: savedCount, 
+            skipped: skippedCount, 
+            total_fetched: allArticles.length,
+            sources: {
+                newsapi: newsAPIArticles.length,
+                layoffsfyi: layoffsFyiArticles.length,
+                alternative: alternativeArticles.length
+            }
+        };
 
     } catch (error) {
-        console.error("NewsAPI Error:", error.response?.data || error.message);
+        console.error("[SYNC] Error:", error.message);
         throw error;
     }
 };

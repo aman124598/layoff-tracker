@@ -6,4 +6,5 @@ export interface Layoff {
     country: string;
     industry: string;
     source_url: string;
+    source_name?: string;
 }
