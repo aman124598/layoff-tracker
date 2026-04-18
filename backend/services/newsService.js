@@ -228,7 +228,7 @@ const fetchFromLayoffsFyi = async () => {
     try {
         console.log('[Layoffs.fyi] Fetching data...');
         const response = await axios.get('https://raw.githubusercontent.com/MohammedTaherMcMoran/Layoffs.fyi-Dataset/main/layoff_data.csv');
-        
+
         if (!response.data) {
             console.log('[Layoffs.fyi] No data received');
             return [];
@@ -336,7 +336,7 @@ const fetchFromAlternativeSources = async () => {
 const fetchAndStoreLayoffs = async () => {
     try {
         console.log('[SYNC] Starting multi-source sync...');
-        
+
         // Fetch from all sources in parallel
         const [newsAPIArticles, layoffsFyiArticles, alternativeArticles] = await Promise.all([
             fetchFromNewsAPI(),
@@ -445,10 +445,10 @@ const fetchAndStoreLayoffs = async () => {
         }
 
         console.log(`[SYNC] Done: ${savedCount} saved, ${skippedCount} skipped`);
-        return { 
-            message: "Sync complete", 
-            saved: savedCount, 
-            skipped: skippedCount, 
+        return {
+            message: "Sync complete",
+            saved: savedCount,
+            skipped: skippedCount,
             total_fetched: allArticles.length,
             sources: {
                 newsapi: newsAPIArticles.length,

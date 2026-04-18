@@ -105,8 +105,8 @@ export const Dashboard = () => {
                         <button
                             onClick={() => handleTabChange('india')}
                             className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all ${activeTab === 'india'
-                                    ? 'bg-gradient-to-r from-orange-600 to-red-600 text-white shadow-lg shadow-red-600/30'
-                                    : 'text-neutral-400 hover:text-white hover:bg-[#1a1a1a]'
+                                ? 'bg-gradient-to-r from-orange-600 to-red-600 text-white shadow-lg shadow-red-600/30'
+                                : 'text-neutral-400 hover:text-white hover:bg-[#1a1a1a]'
                                 }`}
                         >
                             <IndianRupee className="w-4 h-4" />
@@ -119,8 +119,8 @@ export const Dashboard = () => {
                         <button
                             onClick={() => handleTabChange('worldwide')}
                             className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all ${activeTab === 'worldwide'
-                                    ? 'bg-gradient-to-r from-red-600 to-red-700 text-white shadow-lg shadow-red-600/30'
-                                    : 'text-neutral-400 hover:text-white hover:bg-[#1a1a1a]'
+                                ? 'bg-gradient-to-r from-red-600 to-red-700 text-white shadow-lg shadow-red-600/30'
+                                : 'text-neutral-400 hover:text-white hover:bg-[#1a1a1a]'
                                 }`}
                         >
                             <Globe className="w-4 h-4" />
