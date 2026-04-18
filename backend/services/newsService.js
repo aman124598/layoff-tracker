@@ -89,16 +89,14 @@ const extractAndValidateCompany = (title) => {
 const extractEmployeeCount = (title, description) => {
     const text = `${title || ''} ${description || ''}`;
 
-    // Patterns to find layoff numbers
+    // Patterns to find layoff numbers - very flexible
     const patterns = [
+        /(\d{1,3}(?:,\d{3})*)\s*(?:employees?|workers?|jobs?|staff|people)?(?:\s*(?:laid|cut|fired|off|jobs?))?/i,
         /lay(?:s|ing)?\s*off\s*(\d{1,3}(?:,\d{3})*)/i,
-        /(\d{1,3}(?:,\d{3})*)\s*(?:employees?|workers?|jobs?|staff|people)\s*(?:laid\s*off|cut|fired|let\s*go)/i,
-        /cut(?:ting|s)?\s*(\d{1,3}(?:,\d{3})*)\s*(?:jobs?|employees?|workers?|positions?)/i,
+        /cut(?:ting|s)?\s*(\d{1,3}(?:,\d{3})*)/i,
         /(\d{1,3}(?:,\d{3})*)\s*(?:layoffs?|job\s*cuts?)/i,
-        /eliminat(?:e|ing|es)\s*(\d{1,3}(?:,\d{3})*)\s*(?:jobs?|positions?|roles?)/i,
-        /slash(?:ing|es)?\s*(\d{1,3}(?:,\d{3})*)\s*(?:jobs?|employees?)/i,
-        /reduc(?:e|ing|es)\s*(?:workforce|staff|headcount)\s*by\s*(\d{1,3}(?:,\d{3})*)/i,
-        /fir(?:e|ing|es)\s*(\d{1,3}(?:,\d{3})*)\s*(?:employees?|workers?)/i,
+        /reduction\s*of\s*(\d{1,3}(?:,\d{3})*)/i,
+        /(\d+)\s*percent/i, // Handle percentage-based reductions
     ];
 
     for (const pattern of patterns) {
@@ -106,8 +104,8 @@ const extractEmployeeCount = (title, description) => {
         if (match) {
             const numStr = (match[1] || '').replace(/,/g, '');
             const num = parseInt(numStr, 10);
-            // Only accept reasonable numbers (50 to 99,999) - ignore 100k+
-            if (!isNaN(num) && num >= 50 && num < 100000) {
+            // Accept numbers from 10 upwards (more inclusive)
+            if (!isNaN(num) && num >= 10 && num < 1000000) {
                 return num;
             }
         }
@@ -121,19 +119,19 @@ const isConfirmedLayoff = (title) => {
     if (!title) return false;
     const titleLower = title.toLowerCase();
 
-    // Keywords indicating confirmed layoffs (past tense / completed action)
-    const confirmedKeywords = ['laid off', 'lays off', 'layoffs', 'fired', 'cut', 'cuts', 'slashed', 'eliminated', 'axed', 'let go', 'downsized'];
+    // Keywords indicating layoffs (much more inclusive)
+    const layoffKeywords = ['laid off', 'layoff', 'firing', 'fired', 'job cut', 'job cuts', 'cut jobs', 'cutting jobs', 'reduction', 'downsize', 'furlough', 'severance'];
 
     // Keywords indicating planned/at-risk (NOT confirmed) - exclude these
-    const excludeKeywords = ['at risk', 'could', 'may', 'might', 'plans to', 'planning', 'considering', 'expected to', 'threatens', 'warns', 'fears', 'potential', 'proposed', 'rumor', 'rumour'];
+    const excludeKeywords = ['may cut', 'could cut', 'might cut', 'consider', 'considering', 'may consider', 'planned', 'plans to', 'planning', 'expected to', 'threatens', 'fears'];
 
     // Check if any exclude keywords are present - if so, reject
     if (excludeKeywords.some(kw => titleLower.includes(kw))) {
         return false;
     }
 
-    // Must have a confirmed layoff keyword
-    return confirmedKeywords.some(kw => titleLower.includes(kw));
+    // Must have a layoff keyword
+    return layoffKeywords.some(kw => titleLower.includes(kw));
 };
 
 // Check if India-related
@@ -172,25 +170,27 @@ const getIndustry = (companyName) => {
 // Fetch from NewsAPI
 const fetchFromNewsAPI = async () => {
     if (!process.env.NEWS_API_KEY) {
-        console.warn("NEWS_API_KEY is missing");
+        console.warn("[NewsAPI] WARNING: NEWS_API_KEY is missing");
         return [];
     }
 
     try {
+        console.log('[NewsAPI] Starting fetch...');
         // Multiple targeted search queries for comprehensive coverage
         const searches = [
-            '"layoffs" AND ("employees" OR "workers") AND (Google OR Meta OR Microsoft OR Amazon OR Tesla)',
-            '"laid off" AND (Flipkart OR Swiggy OR Zomato OR Paytm OR BYJU OR Ola OR India)',
-            '"job cuts" AND (Intel OR Salesforce OR Netflix OR Spotify OR IBM OR Cisco)',
-            '"layoffs" AND (Apple OR Oracle OR Netflix OR IBM)',
-            '"workforce reduction" OR "job elimination"',
-            '"mass layoff" OR "mass firing"',
+            'layoffs employees',
+            'job cuts companies',
+            'workforce reduction',
+            'layoff announcement',
         ];
 
         let allArticles = [];
+        let queryCount = 0;
 
         for (const query of searches) {
             try {
+                queryCount++;
+                console.log(`[NewsAPI] Query ${queryCount}/${searches.length}: "${query}"`);
                 const response = await axios.get(NEWS_API_URL, {
                     params: {
                         apiKey: process.env.NEWS_API_KEY,
@@ -200,9 +200,11 @@ const fetchFromNewsAPI = async () => {
                         pageSize: 50
                     }
                 });
+                const articlesCount = response.data.articles ? response.data.articles.length : 0;
+                console.log(`[NewsAPI] Query ${queryCount} returned ${articlesCount} articles`);
                 allArticles = [...allArticles, ...(response.data.articles || [])];
             } catch (err) {
-                console.error(`[NewsAPI] Query failed: ${query}`, err.message);
+                console.error(`[NewsAPI] Query failed: "${query}" - ${err.message}`);
             }
         }
 
@@ -214,11 +216,11 @@ const fetchFromNewsAPI = async () => {
             return true;
         });
 
-        console.log(`[NewsAPI] Fetched ${allArticles.length} unique articles`);
+        console.log(`[NewsAPI] Fetched ${allArticles.length} unique articles total`);
         return allArticles;
 
     } catch (error) {
-        console.error("[NewsAPI] Error:", error.message);
+        console.error("[NewsAPI] Fatal Error:", error.message);
         return [];
     }
 };
@@ -226,16 +228,37 @@ const fetchFromNewsAPI = async () => {
 // Fetch from Layoffs.fyi GitHub data
 const fetchFromLayoffsFyi = async () => {
     try {
-        console.log('[Layoffs.fyi] Fetching data...');
-        const response = await axios.get('https://raw.githubusercontent.com/MohammedTaherMcMoran/Layoffs.fyi-Dataset/main/layoff_data.csv');
+        console.log('[Layoffs.fyi] Fetching data from GitHub...');
+        
+        // Try multiple possible GitHub URLs
+        const urls = [
+            'https://raw.githubusercontent.com/MohammedTaherMcMoran/Layoffs.fyi-Dataset/main/layoff_data.csv',
+            'https://raw.githubusercontent.com/HackerNews/layoffs.fyi/main/layoff_data.csv',
+        ];
 
-        if (!response.data) {
-            console.log('[Layoffs.fyi] No data received');
+        let data = null;
+        
+        for (const url of urls) {
+            try {
+                console.log(`[Layoffs.fyi] Trying URL: ${url}`);
+                const response = await axios.get(url, { timeout: 5000 });
+                if (response.data) {
+                    data = response.data;
+                    console.log('[Layoffs.fyi] Successfully fetched data');
+                    break;
+                }
+            } catch (err) {
+                console.log(`[Layoffs.fyi] URL failed (${err.response?.status || err.message}): ${url}`);
+            }
+        }
+
+        if (!data) {
+            console.log('[Layoffs.fyi] No data sources available - skipping');
             return [];
         }
 
         // Parse CSV data
-        const lines = response.data.split('\n').slice(1); // Skip header
+        const lines = data.split('\n').slice(1); // Skip header
         const articles = [];
 
         for (const line of lines) {
@@ -287,7 +310,7 @@ const fetchFromLayoffsFyi = async () => {
         return articles;
 
     } catch (error) {
-        console.error('[Layoffs.fyi] Error:', error.message);
+        console.error('[Layoffs.fyi] Fatal error:', error.message);
         return [];
     }
 };
